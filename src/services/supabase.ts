@@ -187,5 +187,5 @@ export const db = {
     
     if (error) throw error;
     return data;
-  },
+}
 };

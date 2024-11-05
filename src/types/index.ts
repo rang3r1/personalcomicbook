@@ -12,3 +12,24 @@ export interface Project {
   name: string;
   // Add other project-related fields
 }
+
+export type SubscriptionTier = 'free' | 'basic' | 'pro' | 'enterprise';
+
+export type ComicStyle = 'manga' | 'superhero' | 'cartoon' | 'classic';
+
+export interface Character {
+  character_id: string;
+  name: string;
+  traits?: {
+    description?: string;
+    appearance?: string;
+    personality?: string;
+  };
+}
+
+export interface Panel {
+  panel_id: string;
+  order: number;
+  image_url: string;
+  description?: string;
+}

@@ -1,24 +1,10 @@
-import { supabase } from './supabase';
-import { User } from '@/types';
-import { User as SupabaseUser } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import { User } from '../types';
 
-const transformSupabaseUser = async (supabaseUser: SupabaseUser): Promise<User> => {
-  // Get additional user data from our users table
-  const { data: userData, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('user_id', supabaseUser.id)
-    .single();
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  if (error) throw error;
-
-  return {
-    user_id: supabaseUser.id,
-    email: supabaseUser.email || '',
-    subscription_level: userData?.subscription_level || 'free',
-    created_at: new Date(supabaseUser.created_at),
-  };
-};
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const auth = {
   async signInWithGoogle() {
@@ -26,85 +12,39 @@ export const auth = {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
+          redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback`
+        }
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
       return data;
     } catch (error) {
-      console.error('Error signing in with Google:', error);
+      console.error('Google Sign-In Error:', error);
       throw error;
     }
   },
 
-  async signOut() {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error signing out:', error);
-      throw error;
-    }
+  async handleAuthCallback() {
+    const { data, error } = await supabase.auth.getSession();
+    return { data, error };
   },
 
   async getCurrentUser(): Promise<User | null> {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      
-      if (error || !user) return null;
-
-      return await transformSupabaseUser(user);
-    } catch (error) {
-      console.error('Error getting current user:', error);
-      return null;
-    }
-  },
-
-  async handleAuthCallback(): Promise<User | null> {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      
-      if (error || !user) throw error || new Error('No user found');
-
-      // Check if user exists in our users table
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!existingUser) {
-        // Create new user record
-        const { error: createError } = await supabase
-          .from('users')
-          .insert([
-            {
-              user_id: user.id,
-              email: user.email,
-              subscription_level: 'free',
-              created_at: new Date().toISOString(),
-            },
-          ]);
-
-        if (createError) throw createError;
-      }
-
-      return await transformSupabaseUser(user);
-    } catch (error) {
-      console.error('Error handling auth callback:', error);
-      throw error;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    return user;
   },
 
   onAuthStateChange(callback: (user: User | null) => void) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const user = await transformSupabaseUser(session.user);
-        callback(user);
-      } else if (event === 'SIGNED_OUT') {
-        callback(null);
-      }
+    return supabase.auth.onAuthStateChange((event, session) => {
+      const user = session?.user ?? null;
+      callback(user);
     });
   },
+
+  async signOut() {
+    return await supabase.auth.signOut();
+  }
 };

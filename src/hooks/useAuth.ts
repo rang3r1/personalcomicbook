@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/services/auth';
-import { useUserStore } from '@/store/userStore';
-import { User } from '@/types';
+import { auth } from '../services/auth';
+import { useUserStore } from '../store/userStore';
+import { User } from '../types';
 
 export function useAuth() {
   const router = useRouter();
@@ -13,7 +13,11 @@ export function useAuth() {
     const checkUser = async () => {
       try {
         const currentUser = await auth.getCurrentUser();
-        setUser(currentUser);
+        if (currentUser) {
+          setUser(currentUser);
+          // Redirect to dashboard if user is already authenticated
+          router.push('/dashboard');
+        }
       } catch (error) {
         console.error('Error checking user:', error);
         clearUser();
@@ -26,6 +30,8 @@ export function useAuth() {
     const { data: authListener } = auth.onAuthStateChange((user: User | null) => {
       if (user) {
         setUser(user);
+        // Redirect to dashboard on successful authentication
+        router.push('/dashboard');
       } else {
         clearUser();
       }
@@ -35,12 +41,20 @@ export function useAuth() {
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  }, [setUser, clearUser]);
+  }, [setUser, clearUser, router]);
 
   const signIn = async () => {
     try {
-      await auth.signInWithGoogle();
-      // Redirect is handled by the OAuth provider
+      const result = await auth.signInWithGoogle();
+      
+      // Supabase signInWithOAuth might throw an error or return an error
+      if (result instanceof Error) {
+        console.error('Sign in error:', result);
+        throw result;
+      }
+      
+      // Explicitly handle redirect after sign-in
+      // The onAuthStateChange listener will handle the dashboard redirect
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
